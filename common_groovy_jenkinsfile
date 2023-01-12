@@ -1,0 +1,99 @@
+currentBuild.displayName = "nta-app-#"+currentBuild.number
+
+@Library('ObinnaAliogorsSharedLibraries') _
+pipeline{
+
+agent any
+
+tools{
+maven "maven3.8.6"
+}
+
+stages{
+
+
+stage('CodeClone'){
+steps{
+sh "echo 'Clonning the code from GitHub'"
+git credentialsId: 'GitHub Credential', url: 'https://github.com/obinnaaliogor/obinnaaliogor_repo.git'
+}
+}
+
+stage('Build'){
+steps{
+common('Build')
+}
+}
+
+stage('SonarQube Report'){
+steps{
+common('SonarQube Report')
+}
+}
+
+stage('Upload Into Nexus'){
+steps{
+common('Upload Into Nexus')
+}
+}
+
+stage('Deploy2UAT'){
+steps{
+sh "echo 'Deployment to the UAT Environment'"
+deploy adapters: [tomcat9(credentialsId: 'Tomcat Credentials', path: '', url: 'http://172.31.34.244:8177')], contextPath: null, onFailure: false, war: 'target/*war'
+}
+
+}
+
+stage('ApprovalGate'){
+steps{
+sh "echo 'Ready for Approval'"
+timeout(time: 5, unit: 'HOURS'){
+input message: 'Application ready for deployment, kindly review and act accordignly'
+}
+}
+}
+
+
+stage('Deploy2Prod'){
+steps{
+sh "echo 'Deployment to the Prod Environment'"
+deploy adapters: [tomcat9(credentialsId: 'Tomcat Credentials', path: '', url: 'http://172.31.46.38:8177')], contextPath: null, onFailure: false, war: 'target/*war'
+}
+
+}
+
+}
+post{
+always{emailext body: '''Hi All,
+
+Kindly review the build status and act accordignly.
+
+Thanks and Best Regards
+
+Obinna''', recipientProviders: [contributor(), buildUser(), culprits(), developers(), upstreamDevelopers(), brokenBuildSuspects(), requestor(), previous(), brokenTestsSuspects()], subject: 'Build Status', to: 'ntateam@gmail.com'
+}
+
+failure{
+emailext body: '''Hi All,
+
+The build failed please kindly review and act accordignly.
+
+Thanks and Best Regards
+
+Obinna''', recipientProviders: [contributor(), buildUser(), culprits(), developers(), upstreamDevelopers(), brokenBuildSuspects(), requestor(), previous(), brokenTestsSuspects()], subject: 'Build Status', to: 'ntateam@gmail.com'
+}
+success{
+emailext body: '''Hi All,
+
+The build was a success, good job team.
+
+Thanks and Best Regards
+
+Obinna''', recipientProviders: [contributor(), buildUser(), culprits(), developers(), upstreamDevelopers(), brokenBuildSuspects(), requestor(), previous(), brokenTestsSuspects()], subject: 'Build Status', to: 'ntateam@gmail.com'
+
+}
+
+}
+
+}
